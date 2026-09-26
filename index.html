@@ -1,0 +1,740 @@
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WORLD WEDDING — THE LIVING MAGAZINE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;900&family=Playfair+Display:ital,wght@1,500;1,700;1,900&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#F0EBE0;color:#111111;
+    font-family:'Archivo','Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;}
+  canvas{display:block;}
+  #brand{position:fixed;top:24px;left:28px;z-index:6;pointer-events:none;
+    font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:700;}
+  #brand span{font-weight:400;opacity:.6;letter-spacing:.24em;}
+  #folio{position:fixed;top:24px;right:28px;z-index:6;pointer-events:none;text-align:right;
+    font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;font-weight:500;opacity:.75;}
+  #hint{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:6;pointer-events:none;
+    font-size:10px;letter-spacing:.32em;text-transform:uppercase;font-weight:500;opacity:.7;
+    white-space:nowrap;animation:breathe 3.2s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{opacity:.38}50%{opacity:.78}}
+  .vignette{position:fixed;inset:0;z-index:3;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 52%, rgba(17,17,17,.075) 100%);}
+  .grain{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
+    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="300" height="300" filter="url(%23n)" opacity="0.6"/></svg>');}
+</style>
+</head>
+<body>
+<div id="brand">WORLD WEDDING <span>— THE LIVING MAGAZINE</span></div>
+<div id="folio">Nº 001 — OUVERTURE</div>
+<div id="hint">CLIQUEZ POUR OUVRIR LE MAGAZINE</div>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================
+   WORLD WEDDING — THE LIVING MAGAZINE
+   Un magazine 3D. 365 signes. Une grille. Des pages qui tournent.
+   ============================================================ */
+
+const IVORY='#F8F6F0', INK='#111111', FUCHSE='#FF2B8A', DESK='#F0EBE0';
+const CW=1024, CH=1448, PW=0.42, PH=PW*CH/CW;
+const BASE_Y=0.020, PIVOT_OPEN=0.0215, PIVOT_CLOSED=0.0615;
+const DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+const START=[0,31,59,90,120,151,181,212,243,273,304,334];
+const MON3=['JAN','FÉV','MAR','AVR','MAI','JUN','JUL','AOÛ','SEP','OCT','NOV','DÉC'];
+const MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const DOW=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const ELS=['FEU','TERRE','AIR','EAU'];
+const FIRST=['Aurore','Marée','Brume','Flamme','Cendre','Vague','Aube','Braise','Ombre','Rive','Plaine','Glace','Fumée','Voile','Sable','Givre','Horizon','Zéphyr','Écho','Astra','Lumen','Zénith','Minuit','Éclat','Solstice','Vermeil','Solitaire','Cascade'];
+const SUFFIX=['','','',' du Monde',' de Glace'," de l'Aube",' de Fumée',' du Levant',' du Change',' de la Rive',' du Zénith'];
+const CITIES=['Paris','Kyoto','Dakar','Buenos Aires','Reykjavík','Tórshavn','Lagos','Montréal','Turin','Lisbonne','Hanoï','Séoul','Prague','Marrakech','Istanbul','Vienne','Abidjan','Rio de Janeiro','Caire','Oaxaca'];
+const TEMPLATES=[
+ 'Nº {n} — {nom}. L\'un des 365 jours de cette grille vivante. On dit que chaque mariage commence par un virage de page : le vôtre peut-être déjà tourner vers {ville}.',
+ 'Deux personnes, une grille, une aube. Signe {n} — {nom}, élément {el}. Certains jours gardent l\'histoire qu\'on y racontera demain ; {ville} n\'attend que vous.',
+ 'Ouvrez. Lisez. Laissez la feuille glisser. C\'est ce que fait Nº {n} — {nom}, parmi les {el}-signes : la mariation n\'est pas un événement, c\'est une continuité.',
+ 'Jour {dm} du {mois}, semaine Nº {sem}. Ni lune de miel spectaculaire ni cérémonie incontournable : juste {nom}, votre maison, et la feuille qu\'on vous léguera.',
+ '{nom} — Nº {n}. Dans la grille, chaque cellule est une promesse minuscule. Votre promesse attend-elle 31 jours ? {ville} semble dit non.',
+ 'On ne tombe pas amoureux sur les bonnes pages. Vous tomberez amoureux lorsqu\'une ombre fuchsia tombera sur Nº {n} — {nom}. Commencez là.',
+ 'Élément {el}. Nº {n} — {nom}. Ne faites pas la noire : faites la page suivante. {ville} est la suite logique.',
+ 'Magazine vivant, édition Nº {n}. Cette signature vous relie à {cnom} — {cnomNom}. Pas de plan à préparer, pas de pose à réserver : prenez la feuille.',
+ '{nom}, Nº {n}. Si vos deux ancêtres s\'étaient rencontrés le jour {dm} du {mois}, ils n\'auraient jamais choisi un autre jour pour dire oui.',
+ 'Un peu de Feu, un peu de Terre, un peu d\'Air, beaucoup de Volonté. {nom} — Nº {n} embarque les quatre éléments du mariage et vous les remet en main.'
+];
+const PULLS=['un jour, un signe','faites la page suivante','la mariation est une continuité','prenez la feuille','l\'ombre fuchsia tombe quelque part','365 promesses, un seul oui','le virage de page est un cadeau','rien à acheter, tout à feuilleter'];
+
+const pad2=n=>String(n).padStart(2,'0');
+const pad3=n=>String(n).padStart(3,'0');
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+function storyData(n){
+  const r=mulberry32(n*7919+13);
+  const name=FIRST[Math.floor(r()*FIRST.length)]+SUFFIX[Math.floor(r()*SUFFIX.length)];
+  const conj=((n*137+41)%365)+1;
+  const rc=mulberry32(conj*7919+13);
+  const cname=FIRST[Math.floor(rc()*FIRST.length)]+SUFFIX[Math.floor(rc()*SUFFIX.length)];
+  let m=0; while(START[m+1]!==undefined && n>=START[m+1]) m++;
+  const dm=n-START[m];
+  const dow=DOW[(3+(n-1))%7];
+  const el=ELS[(n-1)%4];
+  const ville=CITIES[Math.floor(r()*CITIES.length)];
+  const pull=PULLS[Math.floor(r()*PULLS.length)];
+  const tpl=TEMPLATES[Math.floor(r()*TEMPLATES.length)];
+  const text=tpl.replace('{n}',pad3(n)).replace('{nom}',name).replace('{ville}',ville)
+    .replace('{dm}',dm).replace('{mois}',MONTHS[m-1]||MONTHS[m])
+    .replace('{sem}',Math.ceil(n/7)).replace('{el}',el)
+    .replace('{cnom}',pad3(conj)).replace('{cnomNom}',cname);
+  // fix month index edge (computed via START)
+  let mm=0; for(let i=0;i<12;i++){ if(n>=START[i]) mm=i; }
+  const text2=text.replace(MONTHS[m-1]||MONTHS[m],MONTHS[mm]);
+  return {n,name,conj,cname,month:mm,dm:n-START[mm],dow,el,ville,pull,text:text2,sem:Math.ceil(n/7)};
+}
+
+/* ---------- canvas helpers ---------- */
+function makeCanvas(){const c=document.createElement('canvas');c.width=CW;c.height=CH;return c;}
+function tracked(ctx,text,x,y,ls,align='left'){
+  const prev=ctx.textAlign;ctx.textAlign='left';
+  const chars=[...text];const ws=chars.map(c=>ctx.measureText(c).width);
+  const total=ws.reduce((a,b)=>a+b,0)+ls*(chars.length-1);
+  let sx=align==='left'?x:align==='right'?x-total:x-total/2;
+  chars.forEach((c,i)=>{ctx.fillText(c,sx,y);sx+=ws[i]+ls;});
+  ctx.textAlign=prev;return total;
+}
+function hairline(ctx,x0,y0,x1,y1,a=0.9,w=1){
+  ctx.save();ctx.strokeStyle=`rgba(17,17,17,${a})`;ctx.lineWidth=w;
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.restore();
+}
+function wrap(ctx,text,x,y,maxW,lh){
+  const words=text.split(' ');let line='',yy=y;
+  for(const w of words){const t=line?line+' '+w:w;
+    if(ctx.measureText(t).width>maxW&&line){ctx.fillText(line,x,yy);line=w;yy+=lh;}else line=t;}
+  if(line)ctx.fillText(line,x,yy);return yy;
+}
+function drawGlyph(ctx,el,cx,cy,s,color=INK,lw=3){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';
+  const h=s/2;ctx.beginPath();
+  if(el==='FEU'||el==='AIR'){ctx.moveTo(cx,cy-h);ctx.lineTo(cx-h,cy+h);ctx.lineTo(cx+h,cy+h);}
+  else{ctx.moveTo(cx,cy+h);ctx.lineTo(cx-h,cy-h);ctx.lineTo(cx+h,cy-h);}
+  ctx.closePath();ctx.stroke();
+  ctx.beginPath();
+  if(el==='AIR'){ctx.moveTo(cx-h*0.62,cy-h*0.12);ctx.lineTo(cx+h*0.62,cy-h*0.12);}
+  if(el==='TERRE'){ctx.moveTo(cx-h*0.62,cy+h*0.12);ctx.lineTo(cx+h*0.62,cy+h*0.12);}
+  ctx.stroke();ctx.restore();
+}
+
+/* ---------- hover / pulse state for the grid ---------- */
+let hoverDay=null, pulseDay=null;
+const GRID_X0=176, GRID_CW=(940-GRID_X0)/31, GRID_Y0=360, GRID_RH=96;
+
+/* ---------- cover ---------- */
+function buildCover(){
+  const c=makeCanvas(),x=c.getContext('2d');
+  x.fillStyle=IVORY;x.fillRect(0,0,CW,CH);
+  x.strokeStyle=INK;x.lineWidth=1.5;x.strokeRect(30,30,CW-60,CH-60);
+  x.fillStyle=INK;
+  x.font='900 21px Archivo, Arial, sans-serif';tracked(x,'WORLD WEDDING',70,80,5);
+  x.font='500 12px Archivo';x.globalAlpha=.7;tracked(x,'Nº 001 — AN 365',954,80,2,'right');x.globalAlpha=1;
+  hairline(x,70,104,954,104,0.9,1);
+  x.font='900 168px Archivo, Arial, sans-serif';
+  x.fillText('WORLD',64,306);
+  x.fillText('WEDDING',64,466);
+  const ww=x.measureText('WEDDING').width;
+  x.fillStyle=FUCHSE;x.font='900 64px Archivo';x.fillText('✳',72+ww+14,466);x.fillStyle=INK;
+  x.font='italic 500 30px "Playfair Display", Georgia, serif';x.globalAlpha=.85;
+  x.fillText('— the living magazine',70,522);x.globalAlpha=1;
+  // huge asymmetric 365
+  x.textAlign='right';
+  x.fillStyle=FUCHSE;x.font='900 400px Archivo, Arial, sans-serif';
+  x.fillText('365',960,930);
+  x.fillStyle=INK;x.font='900 44px Archivo';tracked(x,'SIGNES',956,992,16,'right');
+  x.font='500 12px Archivo';x.globalAlpha=.7;tracked(x,'UNE GRILLE UNIVERSELLE DES MARIAGES — UN JOUR, UNE ÉTOILE',954,1032,1.5,'right');x.globalAlpha=1;
+  x.textAlign='left';
+  // vertical edge type
+  x.save();x.translate(58,CH/2+180);x.rotate(-Math.PI/2);
+  x.font='500 11px Archivo';x.globalAlpha=.6;tracked(x,'MARIAGE MONDIAL — ÉDITION UNIVERSELLE — FEUILLETEZ',0,0,2.5);x.restore();
+  x.globalAlpha=1;
+  hairline(x,70,1270,954,1270,0.9,1);
+  x.font='500 12px Archivo';x.globalAlpha=.75;
+  tracked(x,'VU DE MARSEILLE À MUMBAO',70,1310,1.5);
+  x.globalAlpha=1;x.fillStyle=FUCHSE;tracked(x,'CLIQUEZ POUR OUVRIR →',954,1310,1.5,'right');
+  return c;
+}
+
+/* ---------- grid pages ---------- */
+function drawGridInto(side,ctx){
+  ctx.fillStyle=IVORY;ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle=INK;
+  if(side===0){
+    ctx.font='900 62px Archivo, Arial, sans-serif';
+    ctx.fillText('LA GRILLE',84,168);
+    ctx.fillText('DES ',84,240);
+    const w1=ctx.measureText('DES ').width;
+    ctx.fillStyle=FUCHSE;ctx.fillText('365',84+w1,240);
+    const w2=ctx.measureText('365').width;
+    ctx.fillStyle=INK;ctx.fillText(' SIGNES',84+w1+w2,240);
+    ctx.globalAlpha=.6;ctx.font='500 12px Archivo';
+    tracked(ctx,'12 MOIS — 365 JOURS — 4 ÉLÉMENTS',940,168,1.5,'right');
+    tracked(ctx,'THE LIVING MAGAZINE',940,200,2,'right');ctx.globalAlpha=1;
+    hairline(ctx,84,286,940,286,0.9,1);
+  }else{
+    ctx.font='900 38px Archivo';ctx.fillText('JOURS 182 → 365',84,168);
+    ctx.globalAlpha=.6;ctx.font='500 12px Archivo';
+    tracked(ctx,'SUITE DE LA GRILLE UNIVERSELLE',84,204,2);ctx.globalAlpha=1;
+    ctx.save();ctx.font='900 150px Archivo';ctx.textAlign='right';
+    ctx.strokeStyle='rgba(17,17,17,0.16)';ctx.lineWidth=1.4;
+    ctx.strokeText('365',942,196);ctx.restore();ctx.textAlign='left';
+    hairline(ctx,84,286,940,286,0.9,1);
+  }
+  for(let r=0;r<6;r++){
+    const month=side===0?r:6+r;
+    const yB=GRID_Y0+r*GRID_RH;
+    ctx.font='700 14px Archivo';ctx.fillStyle=INK;
+    tracked(ctx,MON3[month],84,yB+34,2);
+    ctx.strokeStyle='rgba(17,17,17,0.10)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(GRID_X0,yB+56);ctx.lineTo(940,yB+56);ctx.stroke();
+    const days=DAYS[month];
+    for(let col=0;col<days;col++){
+      const day=START[month]+col+1;
+      const cx=GRID_X0+col*GRID_CW+GRID_CW/2;
+      const txt=pad2(col+1);
+      ctx.font='500 13px Archivo';ctx.textAlign='center';
+      if(hoverDay===day){
+        ctx.fillStyle=FUCHSE;ctx.fillRect(cx-GRID_CW/2+1.5,yB+6,GRID_CW-3,36);
+        ctx.fillStyle=IVORY;ctx.font='700 13px Archivo';
+        ctx.fillText(txt,cx,yB+30);
+      }else if(pulseDay===day){
+        ctx.strokeStyle=FUCHSE;ctx.lineWidth=1.4;
+        ctx.strokeRect(cx-GRID_CW/2+2.5,yB+7,GRID_CW-5,34);
+        ctx.fillStyle=FUCHSE;ctx.fillText(txt,cx,yB+30);
+      }else{
+        ctx.fillStyle=INK;ctx.fillText(txt,cx,yB+30);
+      }
+    }
+    ctx.textAlign='left';
+  }
+  ctx.globalAlpha=.6;ctx.font='500 11px Archivo';
+  if(side===0) tracked(ctx,'CHAQUE CELLULE EST UN JOUR — UNE PROMESSE MINUSCULE',84,972,1.5);
+  else tracked(ctx,'ÉLÉMENTS — FEU · TERRE · AIR · EAU — EN CYCLIQUE',84,972,1.5);
+  ctx.globalAlpha=1;
+  hairline(ctx,84,1340,940,1340,0.9,1);
+  ctx.globalAlpha=.75;ctx.font='500 11px Archivo';
+  if(side===0){
+    tracked(ctx,'UNE CELLULE = UN JOUR — CLIQUEZ POUR OUVRIR SA SIGNATURE',84,1372,1.2);
+    tracked(ctx,'Nº 001 → 182',940,1372,1.2,'right');
+  }else{
+    tracked(ctx,'WORLD WEDDING — LIVING MAGAZINE',84,1372,1.2);
+    tracked(ctx,'Nº 182 → 365',940,1372,1.2,'right');
+  }
+  ctx.globalAlpha=1;
+}
+function dayFromPoint(side,cx,cy){
+  for(let r=0;r<6;r++){
+    const yB=GRID_Y0+r*GRID_RH;
+    if(cy<yB+2||cy>yB+58) continue;
+    if(cx<GRID_X0||cx>940) return null;
+    const col=Math.floor((cx-GRID_X0)/GRID_CW);
+    const month=side===0?r:6+r;
+    if(col<DAYS[month]) return START[month]+col+1;
+    return null;
+  }
+  return null;
+}
+
+/* ---------- story pages ---------- */
+function drawStoryLeft(ctx,n,d){
+  ctx.fillStyle=IVORY;ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle=INK;
+  ctx.globalAlpha=.7;ctx.font='500 11px Archivo';
+  tracked(ctx,'WORLD WEDDING — THE LIVING MAGAZINE',84,84,2);
+  tracked(ctx,`SIGNATURE Nº ${pad3(n)} / 365`,940,84,2,'right');
+  ctx.globalAlpha=1;hairline(ctx,84,110,940,110,0.9,1);
+  ctx.save();ctx.font='900 520px Archivo, Arial, sans-serif';ctx.textAlign='center';
+  ctx.fillStyle='rgba(17,17,17,0.045)';ctx.fillText(pad3(n),512,800);ctx.restore();
+  ctx.fillStyle=FUCHSE;ctx.fillRect(84,184,12,12);
+  ctx.fillStyle=INK;ctx.font='700 15px Archivo';
+  tracked(ctx,`Nº ${pad3(n)} — SIGNATURE`,110,196,2);
+  // monumental name
+  const words=d.name.toUpperCase().split(' ');
+  const size=Math.max(...words.map(w=>w.length))>9?64:88;
+  ctx.font=`italic 700 ${size}px "Playfair Display", Georgia, serif`;
+  const lines=words.length===1?[words[0]]:[words[0],words.slice(1).join(' ')];
+  let ny=310;lines.forEach((w,i)=>ctx.fillText(w,82,ny+i*size*1.04));
+  const barY=ny+(lines.length-1)*size*1.04+36;
+  ctx.fillStyle=FUCHSE;ctx.fillRect(84,barY,46,4);
+  ctx.fillStyle=INK;ctx.font='400 20px Archivo, Arial, sans-serif';
+  const endY=wrap(ctx,d.text,84,barY+50,625,34);
+  ctx.fillStyle=FUCHSE;ctx.fillRect(84,endY+44,3,38);
+  ctx.fillStyle=INK;ctx.font='italic 700 26px "Playfair Display", Georgia, serif';
+  wrap(ctx,`« ${d.pull} »`,108,endY+70,560,36);
+  hairline(ctx,84,1340,940,1340,0.9,1);
+  ctx.globalAlpha=.7;ctx.font='500 11px Archivo';
+  tracked(ctx,`FEUILLE Nº ${pad3(n)} — L'ANNÉE À 365 JOURS`,84,1372,1.5);
+  ctx.globalAlpha=1;ctx.fillStyle=FUCHSE;
+  ctx.font='900 14px Archivo';ctx.textAlign='right';ctx.fillText('✳',940,1372);ctx.textAlign='left';
+}
+function drawStoryRight(ctx,n,d){
+  ctx.fillStyle=IVORY;ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle=INK;ctx.globalAlpha=.7;ctx.font='500 11px Archivo';
+  tracked(ctx,'FICHE DU SIGNE',84,84,2);
+  tracked(ctx,`Nº ${pad3(n)} / 365`,940,84,2,'right');
+  ctx.globalAlpha=1;hairline(ctx,84,110,940,110,0.9,1);
+  const rows=[
+    ['RETOURS',`Nº ${pad3(n)} — 365`,INK],
+    ['DATE',`${d.dow} ${d.dm} ${MONTHS[d.month]}`,INK],
+    ['SEMAINE',`Nº ${pad3(d.sem)}`,INK],
+    ['ÉLÉMENT',d.el,INK],
+    ['CONJONCTURE',`Nº ${pad3(d.conj)} — ${d.cname.toUpperCase()}  →`,FUCHSE]
+  ];
+  let y=182;const rh=72;
+  rows.forEach(([k,v,col])=>{
+    ctx.fillStyle=INK;ctx.globalAlpha=.55;ctx.font='500 10.5px Archivo';
+    tracked(ctx,k,84,y+30,2);ctx.globalAlpha=1;
+    ctx.fillStyle=col;ctx.font='600 16px Archivo';ctx.textAlign='right';
+    ctx.fillText(v,940,y+32);ctx.textAlign='left';
+    hairline(ctx,84,y+rh-14,940,y+rh-14,0.14,1);
+    y+=rh;
+  });
+  // element glyph
+  drawGlyph(ctx,d.el,512,790,150,INK,3);
+  ctx.fillStyle=FUCHSE;ctx.beginPath();ctx.arc(512,790,7,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=INK;ctx.globalAlpha=.55;ctx.font='500 11px Archivo';
+  ctx.textAlign='center';tracked(ctx,`ÉLÉMENT ${d.el}`,512,896,3,'center');ctx.globalAlpha=1;ctx.textAlign='left';
+  // nav
+  const prev=((n-2+365)%365)+1, next=(n%365)+1;
+  ctx.font='600 15px Archivo';
+  ctx.fillStyle=FUCHSE;ctx.fillText('←',84,1160);
+  ctx.fillStyle=INK;tracked(ctx,`Nº ${pad3(prev)}`,110,1160,1.5);
+  ctx.fillStyle=FUCHSE;ctx.textAlign='right';ctx.fillText('→',940,1160);
+  ctx.fillStyle=INK;ctx.textAlign='right';ctx.fillText(`Nº ${pad3(next)} `,914,1160);ctx.textAlign='left';
+  const g='← RETOUR À LA GRILLE';
+  ctx.font='600 12px Archivo';
+  const gw=ctx.measureText(g).width+2*g.length; // approx tracked width
+  ctx.fillStyle=FUCHSE;ctx.textAlign='center';ctx.fillText('←',512-gw/2-6,1240);
+  ctx.fillStyle=INK;tracked(ctx,'RETOUR À LA GRILLE',512+10,1240,2.5,'center');
+  ctx.textAlign='left';
+  hairline(ctx,84,1340,940,1340,0.9,1);
+  ctx.globalAlpha=.7;ctx.font='500 11px Archivo';
+  tracked(ctx,'WORLD WEDDING',84,1372,2);
+  tracked(ctx,`${pad3(n)} / 365`,940,1372,2,'right');ctx.globalAlpha=1;
+}
+
+/* ============================================================
+   THREE — scène, pages, pellicule (page turn), interaction
+   ============================================================ */
+let renderer,scene,camera,controls,clock;
+let gridLC,gridRC,gridCtx=[],gridLTex,gridLTexM,gridRTex,gridRTexM;
+let coverTex,coverTexM;
+let matL,matR,matST,matSB;
+let leftPage,rightPage,pivot,sheetTop,sheetBot,sheetTopGeo,sheetBotGeo;
+let baseTop,baseBot;
+let leftStack,rightStack,spine;
+let state='closed', busy=false, currentSpread=null;
+let flip=null, introT=0;
+const coverC=buildCover();
+
+function pageTex(canvas){
+  const t=new THREE.CanvasTexture(canvas);
+  t.colorSpace=THREE.SRGBColorSpace;
+  t.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  const m=t.clone();
+  m.wrapS=m.wrapT=THREE.RepeatWrapping;
+  m.repeat.set(-1,-1);m.offset.set(1,1);
+  m.needsUpdate=true;
+  return {tex:t,texM:m};
+}
+function disposeSpread(s){
+  if(!s||s.persistent)return;
+  ['L','R'].forEach(k=>{if(s[k]){s[k].tex.dispose();s[k].texM.dispose();}});
+}
+function buildStorySpread(n){
+  const d=storyData(n);
+  const L=makeCanvas(),R=makeCanvas();
+  drawStoryLeft(L.getContext('2d'),n,d);
+  drawStoryRight(R.getContext('2d'),n,d);
+  const lt=pageTex(L),rt=pageTex(R);
+  return {
+    L:{canvas:L,tex:lt.tex,texM:lt.texM},
+    R:{canvas:R,tex:rt.tex,texM:rt.texM},
+    zones:[
+      {x0:56,y0:462,x1:968,y1:550,act:'conj'},
+      {x0:56,y0:1120,x1:430,y1:1196,act:'prev'},
+      {x0:534,y0:1120,x1:968,y1:1196,act:'next'},
+      {x0:280,y0:1204,x1:744,y1:1268,act:'grid'}
+    ],
+    day:n,persistent:false
+  };
+}
+function buildGridSpread(){
+  gridLC=makeCanvas();gridRC=makeCanvas();
+  gridCtx=[gridLC.getContext('2d'),gridRC.getContext('2d')];
+  drawGridInto(0,gridCtx[0]);drawGridInto(1,gridCtx[1]);
+  const lt=pageTex(gridLC),rt=pageTex(gridRC);
+  gridLTex=lt.tex;gridLTexM=lt.texM;gridRTex=rt.tex;gridRTexM=rt.texM;
+  return {L:{canvas:gridLC,tex:gridLTex,texM:gridLTexM},
+          R:{canvas:gridRC,tex:gridRTex,texM:gridRTexM},
+          zones:[],persistent:true};
+}
+function redrawGridPage(side){
+  drawGridInto(side,gridCtx[side]);
+  gridCtx[side].canvas&&0;
+  if(side===0){gridLTex.needsUpdate=true;gridLTexM.needsUpdate=true;}
+  else{gridRTex.needsUpdate=true;gridRTexM.needsUpdate=true;}
+}
+
+function setStacks(hL,hR){
+  leftStack.visible=hL>0.002;
+  leftStack.scale.y=Math.max(hL,0.0005);
+  leftStack.position.y=hL/2;
+  rightStack.visible=hR>0.002;
+  rightStack.scale.y=Math.max(hR,0.0005);
+  rightStack.position.y=hR/2;
+  const h=Math.max(hL,hR);
+  spine.scale.y=Math.max(h,0.001);
+  spine.position.y=h/2;
+}
+
+const ease=t=>t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const easeOut=t=>1-Math.pow(1-t,3);
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+function setCurl(k){
+  if(!sheetTopGeo)return;
+  [[sheetTopGeo,baseTop,1],[sheetBotGeo,baseBot,-1]].forEach(([g,base,sgn])=>{
+    const pos=g.attributes.position;
+    for(let i=0;i<pos.count;i++){
+      const x=base[i*3];
+      const edge=Math.min(1,Math.max(0,(x+PW/2)/PW));
+      pos.setZ(i,sgn*(k*Math.pow(edge,1.7)*0.30+k*0.015));
+    }
+    pos.needsUpdate=true;
+    g.computeVertexNormals();
+  });
+}
+
+function startFlip(f){flip=Object.assign({t:0,dur:1.15,from:0,to:Math.PI,y0:PIVOT_OPEN,y1:PIVOT_OPEN},f);
+  busy=true;flip.onStart&&flip.onStart();}
+function finishFlip(){
+  const f=flip;flip=null;setCurl(0);
+  pivot.rotation.z=0;pivot.position.y=f.y1;
+  f.onDone&&f.onDone();busy=false;
+}
+
+function stageForward(staged){
+  startFlip({
+    from:0,to:Math.PI,
+    onStart:()=>{
+      matST.map=currentSpread.R.tex;
+      matSB.map=staged.L.texM;
+      matR.map=staged.R.tex;rightPage.visible=true;
+      pivot.visible=true;
+    },
+    onDone:()=>{
+      matL.map=staged.L.tex;
+      pivot.visible=false;
+      leftPage.visible=true;rightPage.visible=true;
+      disposeSpread(currentSpread);
+      currentSpread=staged;state='story';updateUI(staged.day);
+    }
+  });
+}
+function stageBackToGrid(gridSpread){
+  startFlip({
+    from:Math.PI,to:Math.PI*2,
+    onStart:()=>{
+      matST.map=gridSpread.R.tex;
+      matSB.map=currentSpread.L.texM;
+      matL.map=gridSpread.L.tex;leftPage.visible=true;
+      pivot.visible=true;
+    },
+    onDone:()=>{
+      matR.map=gridSpread.R.tex;
+      pivot.visible=false;
+      leftPage.visible=true;rightPage.visible=true;
+      disposeSpread(currentSpread);
+      currentSpread=gridSpread;state='grid';updateUI(null);
+    }
+  });
+}
+function stageOpen(gridSpread){
+  startFlip({
+    from:0,to:Math.PI,y0:PIVOT_CLOSED,y1:PIVOT_OPEN,dur:1.3,
+    onStart:()=>{
+      matST.map=coverTex;matSB.map=gridLTexM;
+      matR.map=gridRTex;rightPage.visible=true;
+      pivot.visible=true;
+    },
+    onDone:()=>{
+      matL.map=gridLTex;
+      pivot.visible=false;
+      leftPage.visible=true;rightPage.visible=true;
+      setStacks(0.018,0.018);
+      coverTex.dispose();coverTexM.dispose();
+      currentSpread=gridSpread;state='grid';updateUI(null);
+    },
+    extra:e=>{
+      setStacks(lerp(0.0005,0.018,e),lerp(0.06,0.018,e));
+      pivot.position.y=lerp(PIVOT_CLOSED,PIVOT_OPEN,e);
+    }
+  });
+}
+
+/* ---------- UI ---------- */
+const hintEl=document.getElementById('hint'),folioEl=document.getElementById('folio');
+function updateUI(day){
+  if(state==='closed'){hintEl.textContent='CLIQUEZ POUR OUVRIR LE MAGAZINE';folioEl.textContent='Nº 001 — OUVERTURE';}
+  else if(state==='grid'){hintEl.textContent='LA GRILLE DES 365 SIGNES — CLIQUEZ UN JOUR POUR OUVRIR SA SIGNATURE';folioEl.textContent='LA GRILLE — 365 SIGNES';}
+  else{hintEl.textContent='CONTINUEZ À FEUILLETER — OU RETOUR À LA GRILLE EN BAS';folioEl.textContent=`SIGNATURE Nº ${pad3(day)} — 365`;}
+}
+
+/* ---------- raycast helpers ---------- */
+const raycaster=new THREE.Raycaster();
+const ndc=new THREE.Vector2();
+function castAt(ev,objects){
+  const r=renderer.domElement.getBoundingClientRect();
+  ndc.x=((ev.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((ev.clientY-r.top)/r.height)*2+1;
+  raycaster.setFromCamera(ndc,camera);
+  const hits=raycaster.intersectObjects(objects,false);
+  return hits.length?hits[0]:null;
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.03;
+  document.body.appendChild(renderer.domElement);
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(DESK);
+
+  camera=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,0.01,60);
+  camera.position.set(1.7,2.5,2.9);
+
+  controls=new OrbitControls(camera,renderer.domElement);
+  controls.target.set(0,0.02,0.02);
+  controls.enableDamping=true;controls.dampingFactor=0.06;
+  controls.enablePan=false;
+  controls.minDistance=0.85;controls.maxDistance=3.4;
+  controls.minPolarAngle=0.3;controls.maxPolarAngle=1.24;
+  controls.minAzimuthAngle=-0.8;controls.maxAzimuthAngle=1.3;
+  controls.enabled=false;
+
+  clock=new THREE.Clock();
+
+  /* lights */
+  scene.add(new THREE.HemisphereLight(0xfff8ec,0xd8d0bf,0.85));
+  const key=new THREE.DirectionalLight(0xffffff,1.45);
+  key.position.set(1.7,2.7,1.3);key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048);
+  key.shadow.camera.left=-1.5;key.shadow.camera.right=1.5;
+  key.shadow.camera.top=1.5;key.shadow.camera.bottom=-1.5;
+  key.shadow.camera.near=0.5;key.shadow.camera.far=7;
+  key.shadow.bias=-0.0004;key.shadow.radius=4;
+  scene.add(key);
+  const fill=new THREE.DirectionalLight(0xfff2e0,0.32);
+  fill.position.set(-1.6,1.4,-1.2);scene.add(fill);
+
+  /* desk with giant outlined 365 */
+  const dc=document.createElement('canvas');dc.width=dc.height=2048;
+  const dx=dc.getContext('2d');
+  dx.fillStyle=DESK;dx.fillRect(0,0,2048,2048);
+  dx.save();dx.translate(1024,1080);dx.rotate(-0.10);
+  dx.font='900 660px Archivo, Arial, sans-serif';
+  dx.textAlign='center';dx.strokeStyle='rgba(17,17,17,0.05)';dx.lineWidth=2;
+  dx.strokeText('365',0,220);dx.restore();
+  dx.font='500 30px Archivo';dx.fillStyle='rgba(17,17,17,0.10)';
+  dx.textAlign='left';dx.fillText('WORLD WEDDING — THE LIVING MAGAZINE',80,1980);
+  dx.textAlign='right';dx.fillText('ÉDITION VIVANTE — FEUILLETEZ',1968,1980);
+  const dtex=new THREE.CanvasTexture(dc);
+  dtex.colorSpace=THREE.SRGBColorSpace;
+  dtex.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  const desk=new THREE.Mesh(new THREE.PlaneGeometry(11,11),
+    new THREE.MeshStandardMaterial({map:dtex,roughness:1,metalness:0}));
+  desk.rotation.x=-Math.PI/2;desk.position.y=-0.001;
+  desk.receiveShadow=true;scene.add(desk);
+
+  /* the magazine */
+  const book=new THREE.Group();book.rotation.y=-0.15;scene.add(book);
+
+  const CT=pageTex(coverC);coverTex=CT.tex;coverTexM=CT.texM;
+  const gridSpread=buildGridSpread();
+
+  matL=new THREE.MeshStandardMaterial({map:gridLTex,roughness:0.95,metalness:0});
+  matR=new THREE.MeshStandardMaterial({map:gridRTex,roughness:0.95,metalness:0});
+  matST=new THREE.MeshStandardMaterial({map:coverTex,roughness:0.95,metalness:0});
+  matSB=new THREE.MeshStandardMaterial({map:gridLTexM,roughness:0.95,metalness:0});
+
+  const staticGeo=new THREE.PlaneGeometry(PW,PH);staticGeo.rotateX(-Math.PI/2);
+  leftPage=new THREE.Mesh(staticGeo,matL);
+  leftPage.position.set(-PW/2,BASE_Y,0);
+  leftPage.castShadow=true;leftPage.receiveShadow=true;leftPage.visible=false;
+  rightPage=new THREE.Mesh(staticGeo,matR);
+  rightPage.position.set(PW/2,BASE_Y,0);
+  rightPage.castShadow=true;rightPage.receiveShadow=true;rightPage.visible=false;
+  book.add(leftPage,rightPage);
+
+  sheetTopGeo=new THREE.PlaneGeometry(PW,PH,16,24);
+  sheetBotGeo=sheetTopGeo.clone();
+  baseTop=sheetTopGeo.attributes.position.array.slice();
+  baseBot=sheetBotGeo.attributes.position.array.slice();
+  sheetTop=new THREE.Mesh(sheetTopGeo,matST);
+  sheetTop.rotation.x=-Math.PI/2;sheetTop.position.set(PW/2,0.0012,0);
+  sheetTop.castShadow=true;sheetTop.receiveShadow=true;
+  sheetBot=new THREE.Mesh(sheetBotGeo,matSB);
+  sheetBot.rotation.x=Math.PI/2;sheetBot.position.set(PW/2,-0.0012,0);
+  sheetBot.castShadow=true;sheetBot.receiveShadow=true;
+  pivot=new THREE.Group();pivot.position.set(0,PIVOT_CLOSED,0);
+  pivot.add(sheetTop,sheetBot);book.add(pivot);
+
+  const stackMat=new THREE.MeshStandardMaterial({color:0xEFE9DB,roughness:0.92});
+  const mkStack=()=>{const m=new THREE.Mesh(new THREE.BoxGeometry(PW-0.006,1,PH-0.006),stackMat);
+    m.castShadow=true;m.receiveShadow=true;m.scale.y=0.0005;return m;};
+  leftStack=mkStack();leftStack.position.x=-PW/2;leftStack.visible=false;
+  rightStack=mkStack();rightStack.position.x=PW/2;
+  spine=new THREE.Mesh(new THREE.BoxGeometry(0.006,1,PH-0.004),
+    new THREE.MeshStandardMaterial({color:0x191713,roughness:0.7}));
+  spine.castShadow=true;
+  book.add(leftStack,rightStack,spine);
+  setStacks(0.0005,0.06);
+
+  /* ---- interactions ---- */
+  let downPos=null;
+  const dom=renderer.domElement;
+  dom.addEventListener('pointerdown',e=>{downPos=[e.clientX,e.clientY];});
+  dom.addEventListener('pointerup',e=>{
+    if(!downPos)return;
+    const dx=e.clientX-downPos[0],dy=e.clientY-downPos[1];
+    downPos=null;
+    if(dx*dx+dy*dy>49)return;
+    handleTap(e);
+  });
+  dom.addEventListener('pointerleave',()=>{
+    if(hoverDay!==null){hoverDay=null;redrawGridPage(0);redrawGridPage(1);}
+    dom.style.cursor='default';
+  });
+  dom.addEventListener('pointermove',e=>{
+    if(busy){dom.style.cursor='default';return;}
+    if(state==='closed'){
+      dom.style.cursor=castAt(e,[sheetTop,sheetBot])?'pointer':'default';return;
+    }
+    if(state==='grid'){
+      const objs=[leftPage,rightPage].filter(o=>o.visible);
+      const hit=castAt(e,objs);
+      let d=null;
+      if(hit&&hit.uv){
+        const side=hit.object===leftPage?0:1;
+        d=dayFromPoint(side,hit.uv.x*CW,(1-hit.uv.y)*CH);
+      }
+      if(d!==hoverDay){hoverDay=d;redrawGridPage(0);redrawGridPage(1);}
+      dom.style.cursor=d?'pointer':'default';return;
+    }
+    if(state==='story'){
+      const objs=[leftPage,rightPage].filter(o=>o.visible);
+      const hit=castAt(e,objs);
+      let over=false;
+      if(hit&&hit.uv&&hit.object===rightPage){
+        const cx=hit.uv.x*CW,cy=(1-hit.uv.y)*CH;
+        over=currentSpread.zones.some(z=>cx>=z.x0&&cx<=z.x1&&cy>=z.y0&&cy<=z.y1);
+      }
+      dom.style.cursor=over?'pointer':'default';
+    }
+  });
+
+  function handleTap(e){
+    if(busy)return;
+    if(state==='closed'){stageOpen(gridSpread);return;}
+    if(state==='grid'){
+      const objs=[leftPage,rightPage].filter(o=>o.visible);
+      const hit=castAt(e,objs);
+      if(!hit||!hit.uv)return;
+      const side=hit.object===leftPage?0:1;
+      const d=dayFromPoint(side,hit.uv.x*CW,(1-hit.uv.y)*CH);
+      if(d)stageForward(buildStorySpread(d));
+      return;
+    }
+    if(state==='story'){
+      const objs=[leftPage,rightPage].filter(o=>o.visible);
+      const hit=castAt(e,objs);
+      if(!hit||!hit.uv)return;
+      const cx=hit.uv.x*CW,cy=(1-hit.uv.y)*CH;
+      if(hit.object===rightPage){
+        const z=currentSpread.zones.find(z=>cx>=z.x0&&cx<=z.x1&&cy>=z.y0&&cy<=z.y1);
+        if(!z)return;
+        if(z.act==='grid'){stageBackToGrid(gridSpread);return;}
+        const n=currentSpread.day;
+        const dn=z.act==='conj'?((n*137+41)%365)+1:z.act==='next'?(n%365)+1:((n-2+365)%365)+1;
+        stageForward(buildStorySpread(dn));
+      }
+    }
+  }
+
+  /* living pulse on the grid */
+  setInterval(()=>{
+    if(state!=='grid'||busy||hoverDay!==null)return;
+    pulseDay=1+Math.floor(Math.random()*365);
+    redrawGridPage(0);redrawGridPage(1);
+  },2600);
+  pulseDay=24;
+
+  window.addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+
+  updateUI(null);
+  animate();
+}
+
+/* ---------- loop ---------- */
+const camStart=new THREE.Vector3(1.7,2.5,2.9);
+const camEnd=new THREE.Vector3(1.02,1.58,1.86);
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  if(introT<1){
+    introT=Math.min(1,introT+dt/2.2);
+    camera.position.lerpVectors(camStart,camEnd,easeOut(introT));
+    if(introT>=1)controls.enabled=true;
+  }
+  if(flip){
+    flip.t+=dt/flip.dur;
+    const e=ease(Math.min(1,flip.t));
+    pivot.rotation.z=lerp(flip.from,flip.to,e);
+    if(flip.extra)flip.extra(e);
+    else pivot.position.y=lerp(flip.y0,flip.y1,e);
+    setCurl(Math.sin(Math.PI*e));
+    if(flip.t>=1)finishFlip();
+  }
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+/* ---------- boot once fonts are ready ---------- */
+Promise.all([
+  document.fonts.load('900 120px Archivo'),
+  document.fonts.load('700 15px Archivo'),
+  document.fonts.load('400 20px Archivo'),
+  document.fonts.load('italic 700 88px "Playfair Display"'),
+  document.fonts.load('italic 500 30px "Playfair Display"'),
+  document.fonts.ready
+]).then(init).catch(init);
+</script>
+</body>
+</html>
